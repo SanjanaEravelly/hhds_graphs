@@ -2,11 +2,13 @@
 #include <vector>
 #include<map>
 using namespace std;
-enum{
+//enum to define the node types.
+enum{ 
     AND,
     OR,
     NOT
 };
+ 
 
 class pins{
     public:
@@ -22,6 +24,8 @@ class pins{
     void addPinEdge(int pid){
         edge.push_back(pid);
     }
+
+ 	//function used to print the edges between pins
     void displayPinInfo(){
         cout << "\t\t Edges:";
         for(auto itr=edge.begin(); itr!=edge.end(); ++itr){
@@ -29,6 +33,8 @@ class pins{
         }
         cout<<endl;
     }
+
+	// todo port id
 };
 class nodes{
     public:
@@ -56,6 +62,8 @@ class nodes{
     int getType(){
         return type;
     }
+
+ //display function print the node id, type and pins with that particular node.
     void displayNodeInfo(){
             cout<<"Node Info:" << endl;
             cout<<"\t Nid: " << nid <<endl;
@@ -63,27 +71,32 @@ class nodes{
 //            cout<<"\t Pins: ";
             for(auto btr=pintable.begin(); btr!=pintable.end(); ++btr){
                 cout<<"\t pID:"<<btr->first<<" pAddr:"<<btr->second<< endl;
-                btr->second->displayPinInfo();
+                btr->second->displayPinInfo();		// displays the pin id and its corresponding edges with that particular pin in pins class.
             }
             cout << endl;
             //cout<<"\t Nid: " << nn->nid <<endl;  
     }
 };
+
+
+// graph_class which define the nodes in graph 
 class graph{
     public:
-    vector<int>node;
-    map<int, nodes*>nodetable;
-    nodes* nn;
+    vector<int>node;		// array of nodes
+    map<int, nodes*>nodetable;	//nodetable with node id as key and node address as values
+    nodes* nn;			// declaring a temp node  pointer nn to use in display node function  
     void addnode(nodes* ptr, int nid){
-        node.push_back(nid);
-        nodetable[nid]=ptr;
+        node.push_back(nid);	//pushing nodes id in nodes vector.
+        nodetable[nid]=ptr;	//map insertion of node ids
     }
+
+//displays the nodes ids and corresponding node address.
     void displayGraph(){
 
         for(auto itr=nodetable.begin(); itr!=nodetable.end(); ++itr){
             cout<<"nID:"<<itr->first<<" nAddr:"<<itr->second<< endl;
             nn = itr->second;
-            nn->displayNodeInfo();
+            nn->displayNodeInfo();	// displays the node and its corresponding type, pins with that particular node in nodes class.
         }
     }
     

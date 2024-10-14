@@ -1,154 +1,181 @@
 #include <iostream>
 #include <vector>
-#include<map>
+#include <cassert>
+
+#define NUM_NODES 10
+#define NUM_TYPES 3
+#define MAX_PINS_PER_NODE 10
+
+typedef uint32_t Nid;
+typedef uint32_t Pid;
+typedef uint16_t Type;
+typedef uint16_t Port_id;
+
 using namespace std;
-//enum to define the node types.
-enum{ 
-    AND,
-    OR,
-    NOT
-};
+
+int gNid = 1;
+int gPid = 1;
  
 
 class pins{
-    public:
-    int pid;
-    vector<int>edge;
-    int portid;
-    int getpid(){
-        return pid;
+private:
+    Pid pid;
+    Nid masterNid;
+    Port_id portId;
+    
+public:
+    Pid getPid(){
+        return this->pid;
     }
-    void setpid(int ppid){
-        pid=ppid;
+    void setPid(Pid pid){
+        this->pid = pid;
     }
-    void addPinEdge(int pid){
-        edge.push_back(pid);
+    Nid getNid(){
+        return this->masterNid;
     }
-
- 	//function used to print the edges between pins
-    void displayPinInfo(){
-        cout << "\t\t Edges:";
-        for(auto itr=edge.begin(); itr!=edge.end(); ++itr){
-            cout<<*itr<<" ";
-        }
-        cout<<endl;
+    void setNid(Nid nid){
+        this->masterNid = nid;
     }
-
-	// todo port id
+    Port_id getPortid(){
+        return this->portId;
+    }
+    void setPortid(Port_id portid){
+        this->portId = portid;
+    }
 };
+
 class nodes{
-    public:
-    int nid;
-    vector<int>pin;
-    map<int, pins*>pintable;
-    int type;
-    void addpin(pins* ptr, int pid){
-        pin.push_back(pid);
-        pintable[pid]=ptr;
-    }
-    int getid(){
-        return nid;
-    }
-    void setid(int id){
-        nid=id;
-    }
-    /*
-    int addnode(int pid, pins* ptr){
-        pin.push_back(pid);
-    }*/
-    void setType(int ty){
-        type=ty;
-    }    
-    int getType(){
-        return type;
-    }
+private:
+    Nid nid;
+    Type type;
+    
+public:
 
- //display function print the node id, type and pins with that particular node.
-    void displayNodeInfo(){
-            cout<<"Node Info:" << endl;
-            cout<<"\t Nid: " << nid <<endl;
-            cout<<"\t Type: " << type <<endl;
-//            cout<<"\t Pins: ";
-            for(auto btr=pintable.begin(); btr!=pintable.end(); ++btr){
-                cout<<"\t pID:"<<btr->first<<" pAddr:"<<btr->second<< endl;
-                btr->second->displayPinInfo();		// displays the pin id and its corresponding edges with that particular pin in pins class.
-            }
-            cout << endl;
-            //cout<<"\t Nid: " << nn->nid <<endl;  
+    Nid getNid(){
+        return this->nid;
     }
-};
-
-
-// graph_class which define the nodes in graph 
-class graph{
-    public:
-    vector<int>node;		// array of nodes
-    map<int, nodes*>nodetable;	//nodetable with node id as key and node address as values
-    nodes* nn;			// declaring a temp node  pointer nn to use in display node function  
-    void addnode(nodes* ptr, int nid){
-        node.push_back(nid);	//pushing nodes id in nodes vector.
-        nodetable[nid]=ptr;	//map insertion of node ids
-    }
-
-//displays the nodes ids and corresponding node address.
-    void displayGraph(){
-
-        for(auto itr=nodetable.begin(); itr!=nodetable.end(); ++itr){
-            cout<<"nID:"<<itr->first<<" nAddr:"<<itr->second<< endl;
-            nn = itr->second;
-            nn->displayNodeInfo();	// displays the node and its corresponding type, pins with that particular node in nodes class.
-        }
+    void setNid(Nid id){
+        this->nid = id;
     }
     
+    void setType(Type ty){
+        this->type = ty;
+    }
+    Type getType(){
+        return this->type;
+    }
 };
 
+// graph_class 
+class graph{
+    public:
+    vector<nodes*> nodeTable;      // array of nodes
+    vector<pins*> pinTable;        // array of Pins
 
-void addEdge(pins* p1, pins* p2){
-    p1->addPinEdge(p2->getpid());
-    p2->addPinEdge(p1->getpid());
-}
+    graph() {clear_graph();}
+    void clear_graph(){
+        // TODO: Clear graph?
+        return;
+    }
+    
+    int generate_nodeID(){
+        // We can create random Nids.
+        // But to keep it simple, I am using a global variable and incrementing everytime we create node.
+        //TODO: Add logic to avoid deleted Nids.
+        return gNid++;
+    }
+    int generate_pinID(){
+        // Same as generate_nodeID()
+        //TODO: Add logic to avoid deleted Nids.
+        return gPid++;
+    }
+    
+    Nid create_node(){
+        Nid id = generate_nodeID(); // Generate new NodeID
+        assert(id);
+        if(nodeTable.size() <= id){
+            nodeTable.resize(id+1);     // Resize nodeTable to fit new node
+        }
+        nodes* newNode = new nodes;  // Allocate memory for new node
+        nodeTable[id] = newNode;
+        newNode->setNid(id);  // Set Nid of new node
+        //cout << "Created new Node: "<< id << endl;
+        return id;
+    }
+    Pid create_pin(Nid nid, Port_id portid){
+        Pid id = generate_pinID(); // Generate new PinID
+        assert(id);
+        if(pinTable.size() <= id){
+            pinTable.resize(id+1);     // Resize pinTable to fit new pin
+        }
+        pins* newPin = new pins;  // Allocate memory for new pin
+        pinTable[id] = newPin;
+        newPin->setPid(id);  // Set Pid of new pin
+        newPin->setNid(nid);  // Set Pid of new pin
+        newPin->setPortid(portid);  // Set PortId of new pin
+        //cout << "Created new Pin "<<id <<" for node "<<nid <<endl;
+        return id;
+    }
+    
+    void set_type(Nid nid, Type type){
+        ref_node(nid)->setType(type);
+    }
+    
+    nodes* ref_node(Nid id){
+        assert(id);
+        return (nodes* )nodeTable[id];
+    }
+    pins* ref_pin(Pid id){
+        assert(id);
+        return (pins* )pinTable[id];
+    }
+
+    //Visualize entire graph. This is just for development purpose
+    void displayGraph(){
+        for (int i = 1; i < pinTable.size(); ++i) {
+            pins* currPin = ref_pin(i);
+            cout<<"PinID: "<<currPin->getPid() <<endl;
+            cout<<"\t MasterNodeID: "<<currPin->getNid();
+            cout<<"; NodeType: "<<ref_node(currPin->getNid())->getType() <<endl;
+            cout<<"\t PortID: "<<currPin->getPortid() <<endl;
+            cout<<endl;
+        }
+    }
+};
 
 int main()
 {
-    graph* g1=new graph; 
-    nodes* n1=new nodes;
-    nodes* n2=new nodes;
-    nodes* n3=new nodes;
-    pins *p1=new pins;
-    pins *p2=new pins;
-    pins *p3=new pins;
-    pins *p4=new pins;
-    pins *p5=new pins;
-    pins *p6=new pins;
-    pins *p7=new pins;
-    n1->setid(1);
-    n2->setid(2);
-    n3->setid(3);
-    n1->setType(AND);
-    n2->setType(NOT);
-    n3->setType(OR);
-    g1->addnode(n1, n1->getid());
-    g1->addnode(n2, n2->getid());
-    g1->addnode(n3, n3->getid());
-    p1->setpid(101);
-    p2->setpid(102);
-    p3->setpid(103);
-    p4->setpid(104);
-    p5->setpid(105);
-    p6->setpid(106);
-    p7->setpid(107); 
-    n1->addpin(p1, p1->getpid());
-    n1->addpin(p2, p2->getpid());
-    n1->addpin(p3, p3->getpid());
-    n2->addpin(p4, p4->getpid());
-    n2->addpin(p5, p5->getpid());
-    n3->addpin(p6, p6->getpid());
-    n3->addpin(p7, p7->getpid());
+    std::vector<Nid> node_id;
+    std::vector<Pid> pin_id;
     
-    //Add Edges
-    addEdge(p3, p6);
-    addEdge(p5, p7);
-    g1->displayGraph();
+    std::srand(std::time(0));
+    
+    graph g1;
+    
+    for(int i=0; i<NUM_NODES; i++){
+        //Create Nodes
+        Nid nid = g1.create_node();
+        node_id.push_back(nid); //Dosnt create extra copy like push_back does
+        
+        //Add node type
+        g1.set_type(nid, nid % NUM_TYPES);
+        
+        //Add pins to node as required
+        int rpins = std::rand() % MAX_PINS_PER_NODE + 1;
+        for(int i=0; i<rpins; i++){
+            Pid pid = g1.create_pin(nid, 1);
+            pin_id.push_back(pid);
+        }
+    }
+
+    g1.displayGraph();
+    
+/*
+    Questions:
+    1. Should we not have any pin details in class node?
+    2. For adding edges - Should we consider driver_id as source and sink_id as destination?
+*/
 
     return 0;
 }
+

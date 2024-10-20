@@ -17,74 +17,74 @@ int gNid = 1;
 int gPid = 1;
  
 
-class pins{
+class Pin{
 private:
     Pid pid;
     Nid masterNid;
     Port_id portId;
     
 public:
-    Pid getPid(){
+    Pid get_pid() const {
         return this->pid;
     }
-    void setPid(Pid pid){
+    void set_pid(Pid pid){
         this->pid = pid;
     }
-    Nid getNid(){
+    Nid get_nid() const {
         return this->masterNid;
     }
-    void setNid(Nid nid){
+    void set_nid(Nid nid){
         this->masterNid = nid;
     }
-    Port_id getPortid(){
+    Port_id get_portid() const {
         return this->portId;
     }
-    void setPortid(Port_id portid){
+    void set_portid(Port_id portid){
         this->portId = portid;
     }
 };
 
-class nodes{
+class Node{
 private:
     Nid nid;
     Type type;
     
 public:
 
-    Nid getNid(){
+    Nid get_nid() const {
         return this->nid;
     }
-    void setNid(Nid id){
+    void set_nid(Nid id){
         this->nid = id;
     }
     
-    void setType(Type ty){
+    void set_type(Type ty){
         this->type = ty;
     }
-    Type getType(){
+    Type get_type() const {
         return this->type;
     }
 };
 
 // graph_class 
-class graph{
+class Graph{
     public:
-    vector<nodes*> nodeTable;      // array of nodes
-    vector<pins*> pinTable;        // array of Pins
+    vector<Node> nodeTable;      // array of nodes
+    vector<Pin> pinTable;        // array of Pins
 
-    graph() {clear_graph();}
+    void graph() {clear_graph();}
     void clear_graph(){
         // TODO: Clear graph?
         return;
     }
     
-    int generate_nodeID(){
+    int generate_nodeID() const {
         // We can create random Nids.
         // But to keep it simple, I am using a global variable and incrementing everytime we create node.
         //TODO: Add logic to avoid deleted Nids.
         return gNid++;
     }
-    int generate_pinID(){
+    int generate_pinID() const {
         // Same as generate_nodeID()
         //TODO: Add logic to avoid deleted Nids.
         return gPid++;
@@ -96,9 +96,9 @@ class graph{
         if(nodeTable.size() <= id){
             nodeTable.resize(id+1);     // Resize nodeTable to fit new node
         }
-        nodes* newNode = new nodes;  // Allocate memory for new node
+        Node newNode;
         nodeTable[id] = newNode;
-        newNode->setNid(id);  // Set Nid of new node
+        nodeTable[id].set_nid(id);  // Set Nid of new node
         //cout << "Created new Node: "<< id << endl;
         return id;
     }
@@ -108,36 +108,36 @@ class graph{
         if(pinTable.size() <= id){
             pinTable.resize(id+1);     // Resize pinTable to fit new pin
         }
-        pins* newPin = new pins;  // Allocate memory for new pin
+        Pin newPin;  // Allocate memory for new pin
         pinTable[id] = newPin;
-        newPin->setPid(id);  // Set Pid of new pin
-        newPin->setNid(nid);  // Set Pid of new pin
-        newPin->setPortid(portid);  // Set PortId of new pin
-        //cout << "Created new Pin "<<id <<" for node "<<nid <<endl;
+        pinTable[id].set_pid(id);  // Set Pid of new pin
+        pinTable[id].set_nid(nid);  // Set Pid of new pin
+        pinTable[id].set_portid(portid);  // Set PortId of new pin
+        //cout << "Created new Pin "<<id <<" for node "<<nid <<" with portID: "<<portid <<endl;
         return id;
     }
     
-    void set_type(Nid nid, Type type){
-        ref_node(nid)->setType(type);
+    void set_type(Nid nid, Type type) const {
+        ref_node(nid)->set_type(type);
     }
     
-    nodes* ref_node(Nid id){
+    Node* ref_node(Nid id) const {
         assert(id);
-        return (nodes* )nodeTable[id];
+        return (Node* )&nodeTable[id];
     }
-    pins* ref_pin(Pid id){
+    Pin* ref_pin(Pid id) const {
         assert(id);
-        return (pins* )pinTable[id];
+        return (Pin* )&pinTable[id];
     }
 
     //Visualize entire graph. This is just for development purpose
-    void displayGraph(){
+    void display_graph() const {
         for (int i = 1; i < pinTable.size(); ++i) {
-            pins* currPin = ref_pin(i);
-            cout<<"PinID: "<<currPin->getPid() <<endl;
-            cout<<"\t MasterNodeID: "<<currPin->getNid();
-            cout<<"; NodeType: "<<ref_node(currPin->getNid())->getType() <<endl;
-            cout<<"\t PortID: "<<currPin->getPortid() <<endl;
+            Pin* currPin = ref_pin(i);
+            cout<<"PinID: "<<currPin->get_pid() <<endl;
+            cout<<"\t MasterNodeID: "<<currPin->get_nid();
+            cout<<"; NodeType: "<<ref_node(currPin->get_nid())->get_type() <<endl;
+            cout<<"\t PortID: "<<currPin->get_portid() <<endl;
             cout<<endl;
         }
     }
@@ -150,12 +150,12 @@ int main()
     
     std::srand(std::time(0));
     
-    graph g1;
+    Graph g1;
     
     for(int i=0; i<NUM_NODES; i++){
         //Create Nodes
         Nid nid = g1.create_node();
-        node_id.push_back(nid); //Dosnt create extra copy like push_back does
+        node_id.push_back(nid);
         
         //Add node type
         g1.set_type(nid, nid % NUM_TYPES);
@@ -168,14 +168,8 @@ int main()
         }
     }
 
-    g1.displayGraph();
+    g1.display_graph();
     
-/*
-    Questions:
-    1. Should we not have any pin details in class node?
-    2. For adding edges - Should we consider driver_id as source and sink_id as destination?
-*/
-
     return 0;
 }
 

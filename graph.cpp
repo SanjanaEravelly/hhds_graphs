@@ -17,13 +17,19 @@ int gNid = 1;
 int gPid = 1;
  
 
-class Pin{
+class __attribute__((packed)) Pin{
 private:
     Pid pid;
     Nid masterNid;
     Port_id portId;
-    
+    int16_t sedge_0 : 11;       // Short-edge (11 bits 2-complement)
+
 public:
+    Pin() {clear_pin();}
+    void clear_pin(){
+        bzero(this, sizeof(Pin));  // set everything to zero
+        return;
+    }
     Pid get_pid() const {
         return this->pid;
     }
@@ -41,6 +47,39 @@ public:
     }
     void set_portid(Port_id portid){
         this->portId = portid;
+    }
+    bool add_edge(Pid self_id, Pid other_id) {
+        assert(self_id != other_id);
+        cout<<"Adding edge between pins "<<self_id <<" and "<<other_id <<endl;
+        if(sedge_0 == 0) {
+            // Typecast to avoid underflow
+            int64_t diff = static_cast<int32_t>(other_id) - static_cast<int32_t>(self_id);
+            //fits if diff is between -1024 to 1023
+            bool fits = diff > -(1 << 10) && diff < ((1 << 10) - 1);  // 11 bits 2-complement
+            if(fits) {
+                sedge_0 = static_cast<int16_t>(diff);
+                cout<<"Added edge: diff="<<diff <<" sedge_0="<<sedge_0 <<endl<<endl;
+                return true;
+            }
+            cout<<"Failed adding edge: !fits; diff="<<diff <<endl<<endl;
+            return false;
+        }
+        cout<<"Alread edge 0 exist. Need overflow handling. existing edge="<<sedge_0 <<endl<<endl;
+        return false;
+#if 0
+        //Overflow is not handled for now
+        if(overflow_link | set_link) {
+            return false;
+        }
+        ledge_or_overflow_or_set = other_id;
+        return true;
+#endif
+    }
+    bool has_edges() const {
+        return this->sedge_0 != 0;
+    }
+    uint16_t get_edge0() const {
+        return (this->pid+this->sedge_0);
     }
 };
 
@@ -129,6 +168,19 @@ class Graph{
         assert(id);
         return (Pin* )&pinTable[id];
     }
+    
+    void add_edge(uint32_t driver_id, uint32_t sink_id) const {
+        add_edge_int(driver_id, sink_id);
+        add_edge_int(sink_id, driver_id);
+    }
+    void add_edge_int(uint32_t self_id, uint32_t other_id) const {
+        // For now considering only Pins have edge(s)
+        bool ok = ref_pin(self_id)->add_edge(self_id, other_id);
+        if(ok){
+            return;
+        }
+        cout<<"add_edge_int failed: " <<self_id <<" " <<other_id <<endl;
+    }
 
     //Visualize entire graph. This is just for development purpose
     void display_graph() const {
@@ -138,6 +190,8 @@ class Graph{
             cout<<"\t MasterNodeID: "<<currPin->get_nid();
             cout<<"; NodeType: "<<ref_node(currPin->get_nid())->get_type() <<endl;
             cout<<"\t PortID: "<<currPin->get_portid() <<endl;
+            if(currPin->has_edges())    //Currently only edge0
+                cout<<"\t edge 0: "<<currPin->get_edge0() <<endl;
             cout<<endl;
         }
     }
@@ -167,6 +221,12 @@ int main()
             pin_id.push_back(pid);
         }
     }
+
+    g1.add_edge(2, 3);
+    g1.add_edge(10, 20);
+    g1.add_edge(5, 1);
+    g1.add_edge(5, 7); //Should overflow for 5, because 5 already has a edge
+    //g1.add_edge(4, 100000); //Should not fit for both pins, diff not in range
 
     g1.display_graph();
     

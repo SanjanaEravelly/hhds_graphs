@@ -19,26 +19,21 @@ int gPid = 1;
 
 class __attribute__((packed)) Pin{
 private:
-    Pid pid : 32;
     Nid master_nid : 32;
     Port_id port_id : 16;
     int64_t sedge : 48;       // Short-edges (48 bits 2-complement)
 
 public:
-    Pin() : pid(0), master_nid(0), port_id(0) {clear_pin();}
+    Pin() : master_nid(0), port_id(0) {clear_pin();}
 
-    Pin(Pid pid_value, Nid master_nid_value, Port_id port_id_value) {
+    Pin(Nid master_nid_value, Port_id port_id_value) {
         clear_pin();
-        pid = pid_value;
         master_nid = master_nid_value;
         port_id = port_id_value;
     }
     void clear_pin(){
         bzero(this, sizeof(Pin));  // set everything to zero
         return;
-    }
-    Pid get_pid() const {
-        return pid;
     }
     Nid get_master_nid() const {
         return master_nid;
@@ -91,7 +86,7 @@ public:
         return sedge != 0;
     }
 
-    std::array<int32_t, 4> get_sedges() const {
+    std::array<int32_t, 4> get_sedges(Pid pid) const {
         std::array<int32_t, 4> edges = {0, 0, 0, 0};
         int edge_count = 0;
         for (int i = 0; i < 4; ++i) {
@@ -154,7 +149,7 @@ class __attribute__((packed)) Graph{
     void clear_graph(){
         bzero(this, sizeof(Graph));     // set everything to zero
         node_table.emplace_back(0);     // To avoid assertion for size=0
-        pin_table.emplace_back(0,0,0);  // To avoid assertion for size=0
+        pin_table.emplace_back(0,0);  // To avoid assertion for size=0
         return;
     }
     
@@ -167,7 +162,7 @@ class __attribute__((packed)) Graph{
     Pid create_pin(Nid nid, Port_id port_id){
         Pid id = pin_table.size(); // Generate new PinID
         assert(id);
-        pin_table.emplace_back(id, nid, port_id);
+        pin_table.emplace_back(nid, port_id);
         return id;
     }
 
@@ -195,14 +190,14 @@ class __attribute__((packed)) Graph{
 
     //Visualize entire graph. This is just for development purpose
     void display_graph() const {
-        for (int i = 1; i < pin_table.size(); ++i) {
-            Pin* currPin = ref_pin(i);
-            std::cout<<"Pin ID: "<<currPin->get_pid() <<std::endl;
+        for (Pid pid = 1; pid < pin_table.size(); ++pid) {
+            Pin* currPin = ref_pin(pid);
+            std::cout<<"Pin ID: "<< pid <<std::endl;
             std::cout<<"\t Master Node ID: "<<currPin->get_master_nid();
             std::cout<<"; Node Type: "<<ref_node(currPin->get_master_nid())->get_type() <<std::endl;
             std::cout<<"\t Port ID: "<<currPin->get_port_id() <<std::endl;
             if(currPin->has_edges()) {   //Currently only sedges
-                std::array<int32_t, 4> edges = currPin->get_sedges();
+                std::array<int32_t, 4> edges = currPin->get_sedges(pid);
                 std::cout<<"\t Short edge(s): ";
                 for (const auto& edge : edges) {
                     std::cout << edge << " ";
@@ -215,7 +210,7 @@ class __attribute__((packed)) Graph{
 
 static_assert(sizeof(Graph) == 48, "Graph size must be 48 bytes");
 static_assert(sizeof(Node) == 6, "Node size must be 6 bytes");
-static_assert(sizeof(Pin) == 16, "Graph size must be 12 bytes");
+static_assert(sizeof(Pin) == 12, "Graph size must be 12 bytes");
 
 int main()
 {

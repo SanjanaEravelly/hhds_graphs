@@ -1,6 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <cassert>
+//#include "iassert.hpp"
 
 #define NUM_NODES 10
 #define NUM_TYPES 3
@@ -11,7 +12,7 @@ typedef uint32_t Pid;
 typedef uint16_t Type;
 typedef uint16_t Port_id;
 
-using namespace std;
+//using namespace std;
 
 int gNid = 1;
 int gPid = 1;
@@ -19,39 +20,39 @@ int gPid = 1;
 class __attribute__((packed)) Pin{
 private:
     Pid pid : 32;
-    Nid masterNid : 32;
-    Port_id portId : 16;
+    Nid master_nid : 32;
+    Port_id port_id : 16;
     int64_t sedge : 48;       // Short-edges (48 bits 2-complement)
 
 public:
-    Pin() : pid(0), masterNid(0), portId(0) {clear_pin();}
+    Pin() : pid(0), master_nid(0), port_id(0) {clear_pin();}
 
-    Pin(Pid pidValue, Nid mNidValue, Port_id portIdValue) {
+    Pin(Pid pid_value, Nid master_nid_value, Port_id port_id_value) {
         clear_pin();
-        this->pid = pidValue;
-        this->masterNid = mNidValue;
-        this->portId = portIdValue;
+        pid = pid_value;
+        master_nid = master_nid_value;
+        port_id = port_id_value;
     }
     void clear_pin(){
         bzero(this, sizeof(Pin));  // set everything to zero
         return;
     }
     Pid get_pid() const {
-        return this->pid;
+        return pid;
     }
-    Nid get_nid() const {
-        return this->masterNid;
+    Nid get_master_nid() const {
+        return master_nid;
     }
-    Port_id get_portid() const {
-        return this->portId;
+    Port_id get_port_id() const {
+        return port_id;
     }
     bool add_edge(Pid self_id, Pid other_id) {
         assert(self_id != other_id);
-        cout<<"Adding edge between pins "<<self_id <<" and "<<other_id <<endl;
+        std::cout<<"Adding edge between pins "<<self_id <<" and "<<other_id <<std::endl;
 
         // Check if any of the 4th 12 bits is set
         if((sedge>>3*12 & 0xFFF) != 0) {
-            cout<<"Maximum sedges reached. Need overflow handling" <<endl<<endl;
+            std::cout<<"Maximum sedges reached. Need overflow handling" <<std::endl<<std::endl;
             return false;
         }
 
@@ -62,7 +63,7 @@ public:
         bool fits = diff > -(1 << 11) && diff < ((1 << 11) - 1);  // 12 bits 2-complement
 
         if(!fits) {
-            cout<<"Failed adding edge: !fits; diff="<<diff <<endl<<endl;
+            std::cout<<"Failed adding edge: !fits; diff="<<diff <<std::endl<<std::endl;
             return false;
         }
 
@@ -72,7 +73,7 @@ public:
             if ((sedge & (0xFFFLL << (i * 12))) == 0) { // 12 bits mask
                 // Store the new edge in the next available space in sedge
                 sedge |= (diff & 0xFFF) << (i * 12); // Store each edge in 12 bits
-                cout <<"Added edge: i:"<< i <<" diff=" << diff << endl << endl;
+                std::cout <<"Added edge: i:"<< i <<" diff=" << diff << std::endl << std::endl;
                 return true;
                 }
         }
@@ -87,11 +88,12 @@ public:
 #endif
     }
     bool has_edges() const {
-        return this->sedge != 0;
+        return sedge != 0;
     }
 
-    vector<int32_t> get_sedges() const {
-        vector<int32_t> edges;
+    std::array<int32_t, 4> get_sedges() const {
+        std::array<int32_t, 4> edges = {0, 0, 0, 0};
+        int edge_count = 0;
         for (int i = 0; i < 4; ++i) {
             // Extract each 12-bit edge
             int32_t edge = (sedge >> (i * 12)) & 0xFFF; // Get the 12 bits
@@ -101,8 +103,8 @@ public:
                 edge |= 0xFFFFF000; // Sign extend to 32 bits
             }
 
-            if (edge != 0) { // Only add non-zero edges
-                edges.push_back(this->pid+edge);
+            if (edge != 0 && edge_count < 4) {
+                edges[edge_count++] = pid + edge;
             }
         }
         return edges;
@@ -113,14 +115,15 @@ class __attribute__((packed)) Node{
 private:
     Nid nid : 32;
     Type type : 16;
+    //Pid next_pin_ptr;
     
 public:
     // Default constructor
     Node() : nid(0) {clear_node();} // Initialize with default values
 
-    Node(uint32_t nidValue) {
+    Node(uint32_t nid_value) {
         clear_node();
-        this->nid = nidValue;
+        nid = nid_value;
     }
 
     void clear_node(){
@@ -129,76 +132,52 @@ public:
     }
     
     void set_type(Type type){
-        this->type = type;
+        type = type;
     }
 
     Nid get_nid() const {
-        return this->nid;
+        return nid;
     }
 
     Type get_type() const {
-        return this->type;
+        return type;
     }
 };
 
 // graph_class 
 class __attribute__((packed)) Graph{
     public:
-    vector<Node> nodeTable;      // array of nodes
-    vector<Pin> pinTable;        // array of Pins
+    std::vector<Node> node_table;      // array of nodes
+    std::vector<Pin> pin_table;        // array of Pins
 
-    void graph() {clear_graph();}
+    Graph() {clear_graph();}
     void clear_graph(){
-        // TODO: Clear graph?
+        bzero(this, sizeof(Graph));     // set everything to zero
+        node_table.emplace_back(0);     // To avoid assertion for size=0
+        pin_table.emplace_back(0,0,0);  // To avoid assertion for size=0
         return;
     }
     
-    int generate_nodeID() const {
-        // We can create random Nids.
-        // But to keep it simple, I am using a global variable and incrementing everytime we create node.
-        //TODO: Add logic to avoid deleted Nids.
-        return gNid++;
-    }
-    int generate_pinID() const {
-        // Same as generate_nodeID()
-        //TODO: Add logic to avoid deleted Nids.
-        return gPid++;
-    }
-    
     Nid create_node(){
-        Nid id = generate_nodeID(); // Generate new NodeID
+        Nid id = node_table.size(); // Generate new NodeID
         assert(id);
-        if(nodeTable.size() <= id){
-            nodeTable.resize(id+1);     // Resize nodeTable to fit new node
-        }
-        Node newNode(id);
-        nodeTable[id] = newNode;
-        //cout << "Created new Node: "<< id << endl;
+        node_table.emplace_back(id);
         return id;
     }
-    Pid create_pin(Nid nid, Port_id portid){
-        Pid id = generate_pinID(); // Generate new PinID
+    Pid create_pin(Nid nid, Port_id port_id){
+        Pid id = pin_table.size(); // Generate new PinID
         assert(id);
-        if(pinTable.size() <= id){
-            pinTable.resize(id+1);     // Resize pinTable to fit new pin
-        }
-        Pin newPin(id, nid, portid);  // Allocate memory for new pin
-        pinTable[id] = newPin;
-        //cout << "Created new Pin "<<id <<" for node "<<nid <<" with portID: "<<portid <<endl;
+        pin_table.emplace_back(id, nid, port_id);
         return id;
-    }
-    
-    void set_type(Nid nid, Type type) const {
-        ref_node(nid)->set_type(type);
     }
 
     Node* ref_node(Nid id) const {
         assert(id);
-        return (Node* )&nodeTable[id];
+        return (Node* )&node_table[id];
     }
     Pin* ref_pin(Pid id) const {
         assert(id);
-        return (Pin* )&pinTable[id];
+        return (Pin* )&pin_table[id];
     }
     
     void add_edge(uint32_t driver_id, uint32_t sink_id) const {
@@ -211,24 +190,24 @@ class __attribute__((packed)) Graph{
         if(ok){
             return;
         }
-        cout<<"add_edge_int failed: " <<self_id <<" " <<other_id <<endl;
+        std::cout<<"add_edge_int failed: " <<self_id <<" " <<other_id <<std::endl;
     }
 
     //Visualize entire graph. This is just for development purpose
     void display_graph() const {
-        for (int i = 1; i < pinTable.size(); ++i) {
+        for (int i = 1; i < pin_table.size(); ++i) {
             Pin* currPin = ref_pin(i);
-            cout<<"PinID: "<<currPin->get_pid() <<endl;
-            cout<<"\t MasterNodeID: "<<currPin->get_nid();
-            cout<<"; NodeType: "<<ref_node(currPin->get_nid())->get_type() <<endl;
-            cout<<"\t PortID: "<<currPin->get_portid() <<endl;
+            std::cout<<"Pin ID: "<<currPin->get_pid() <<std::endl;
+            std::cout<<"\t Master Node ID: "<<currPin->get_master_nid();
+            std::cout<<"; Node Type: "<<ref_node(currPin->get_master_nid())->get_type() <<std::endl;
+            std::cout<<"\t Port ID: "<<currPin->get_port_id() <<std::endl;
             if(currPin->has_edges()) {   //Currently only sedges
-                vector<int32_t> edges = currPin->get_sedges();
-                cout<<"\t Short edge(s): ";
+                std::array<int32_t, 4> edges = currPin->get_sedges();
+                std::cout<<"\t Short edge(s): ";
                 for (const auto& edge : edges) {
-                    cout << edge << " ";
+                    std::cout << edge << " ";
                 }
-                cout<<endl;
+                std::cout<<std::endl;
             }
         }
     }
@@ -253,7 +232,7 @@ int main()
         node_id.push_back(nid);
         
         //Add node type
-        g1.set_type(nid, nid % NUM_TYPES);
+        g1.ref_node(nid)->set_type(nid % NUM_TYPES);
         
         //Add pins to node as required
         int rpins = std::rand() % MAX_PINS_PER_NODE + 1;
@@ -275,7 +254,7 @@ int main()
     g1.add_edge(10, 24);
 
     g1.display_graph();
-    cout<<"Pin size: "<<sizeof(Pin) <<endl;
+    std::cout<<"Pin size: "<<sizeof(Pin) <<std::endl;
 
 
     return 0;

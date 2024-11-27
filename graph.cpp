@@ -22,6 +22,7 @@ private:
     Nid master_nid : 32;
     Port_id port_id : 16;
     int64_t sedge : 48;       // Short-edges (48 bits 2-complement)
+    Pid next_pin_id : 32;     // Points to next pin of the same master_node
 
 public:
     Pin() : master_nid(0), port_id(0) {clear_pin();}
@@ -104,13 +105,19 @@ public:
         }
         return edges;
     }
+    Pid get_next_pin_id() const {
+        return next_pin_id;
+    }
+    void set_next_pin_id(Pid id) {
+        next_pin_id = id;
+    }
 };
 
 class __attribute__((packed)) Node{
 private:
     Nid nid : 32;
     Type type : 16;
-    //Pid next_pin_ptr;
+    Pid next_pin_id;       // Points to the first pin of the node
     
 public:
     // Default constructor
@@ -136,6 +143,12 @@ public:
 
     Type get_type() const {
         return type;
+    }
+    Pid get_next_pin_id() const {
+        return next_pin_id;
+    }
+    void set_next_pin_id(Pid id) {
+        next_pin_id = id;
     }
 };
 
@@ -163,6 +176,8 @@ class __attribute__((packed)) Graph{
         Pid id = pin_table.size(); // Generate new PinID
         assert(id);
         pin_table.emplace_back(nid, port_id);
+        //ref_node(nid)->set_next_pin_ptr(ref_pin(id));
+        set_next_pin(nid, id);
         return id;
     }
 
@@ -187,6 +202,20 @@ class __attribute__((packed)) Graph{
         }
         std::cout<<"add_edge_int failed: " <<self_id <<" " <<other_id <<std::endl;
     }
+    
+    void set_next_pin(Nid nid, Pid next_pin){
+        if(ref_node(nid)->get_next_pin_id() == 0) {     // If Node does not have any pin
+            ref_node(nid)->set_next_pin_id(next_pin);   // Set first pin's pointer in node
+            return;
+        }
+        Pid next_pid = ref_node(nid)->get_next_pin_id();
+        // Move across all the existing pins and find the end of the list
+        while(pin_table[next_pid].get_next_pin_id()) {
+            next_pid = pin_table[next_pid].get_next_pin_id();
+        }
+        pin_table[next_pid].set_next_pin_id(next_pin);  //Set the next pin ptr to each pin
+        return;
+    }
 
     //Visualize entire graph. This is just for development purpose
     void display_graph() const {
@@ -204,13 +233,21 @@ class __attribute__((packed)) Graph{
                 }
                 std::cout<<std::endl;
             }
+            std::cout<<"\t Next Pid: "<<currPin->get_next_pin_id() <<std::endl;
+        }
+    }
+    void display_next_pin_of_node(){
+        for (Nid nid = 1; nid < node_table.size(); ++nid) {
+            Node* currNode = ref_node(nid);
+            std::cout<<"Node ID: "<< nid <<std::endl;
+            std::cout<<"\t First pin of node: "<<currNode->get_next_pin_id() <<std::endl;
         }
     }
 };
 
 static_assert(sizeof(Graph) == 48, "Graph size must be 48 bytes");
-static_assert(sizeof(Node) == 6, "Node size must be 6 bytes");
-static_assert(sizeof(Pin) == 12, "Graph size must be 12 bytes");
+static_assert(sizeof(Node) == 10, "Node size must be 6 bytes");
+static_assert(sizeof(Pin) == 16, "Graph size must be 12 bytes");
 
 int main()
 {
@@ -249,8 +286,7 @@ int main()
     g1.add_edge(10, 24);
 
     g1.display_graph();
-    std::cout<<"Pin size: "<<sizeof(Pin) <<std::endl;
-
+    g1.display_next_pin_of_node();
 
     return 0;
 }

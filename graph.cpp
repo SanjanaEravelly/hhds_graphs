@@ -3,16 +3,14 @@
 #include <cassert>
 //#include "iassert.hpp"
 
-#define NUM_NODES 10
-#define NUM_TYPES 3
-#define MAX_PINS_PER_NODE 10
+constexpr int NUM_NODES = 10;
+constexpr int NUM_TYPES = 3;
+constexpr int MAX_PINS_PER_NODE = 10;
 
-typedef uint32_t Nid;
-typedef uint32_t Pid;
-typedef uint16_t Type;
-typedef uint16_t Port_id;
-
-//using namespace std;
+using Nid = uint32_t;
+using Pid = uint32_t;
+using Type = uint16_t;
+using Port_id = uint16_t;
 
 int gNid = 1;
 int gPid = 1;
@@ -36,10 +34,10 @@ public:
         bzero(this, sizeof(Pin));  // set everything to zero
         return;
     }
-    Nid get_master_nid() const {
+    [[nodiscard]] auto get_master_nid() const -> Nid {
         return master_nid;
     }
-    Port_id get_port_id() const {
+    [[nodiscard]] auto get_port_id() const -> Port_id {
         return port_id;
     }
     bool add_edge(Pid self_id, Pid other_id) {
@@ -83,11 +81,11 @@ public:
         return true;
 #endif
     }
-    bool has_edges() const {
+    [[nodiscard]] auto has_edges() const -> bool {
         return sedge != 0;
     }
 
-    std::array<int32_t, 4> get_sedges(Pid pid) const {
+    [[nodiscard]] std::array<int32_t, 4> get_sedges(Pid pid) const {
         std::array<int32_t, 4> edges = {0, 0, 0, 0};
         int edge_count = 0;
         for (int i = 0; i < 4; ++i) {
@@ -99,13 +97,13 @@ public:
                 edge |= 0xFFFFF000; // Sign extend to 32 bits
             }
 
-            if (edge != 0 && edge_count < 4) {
+            if (edge != 0) {
                 edges[edge_count++] = pid + edge;
             }
         }
         return edges;
     }
-    Pid get_next_pin_id() const {
+    [[nodiscard]] auto get_next_pin_id() const -> Pid {
         return next_pin_id;
     }
     void set_next_pin_id(Pid id) {
@@ -137,14 +135,14 @@ public:
         type = type;
     }
 
-    Nid get_nid() const {
+    [[nodiscard]] auto get_nid() const -> Nid {
         return nid;
     }
 
-    Type get_type() const {
+    [[nodiscard]] auto get_type() const -> Type {
         return type;
     }
-    Pid get_next_pin_id() const {
+    [[nodiscard]] auto get_next_pin_id() const -> Pid {
         return next_pin_id;
     }
     void set_next_pin_id(Pid id) {
@@ -166,13 +164,13 @@ class __attribute__((packed)) Graph{
         return;
     }
     
-    Nid create_node(){
+    [[nodiscard]] auto create_node() -> Nid {
         Nid id = node_table.size(); // Generate new NodeID
         assert(id);
         node_table.emplace_back(id);
         return id;
     }
-    Pid create_pin(Nid nid, Port_id port_id){
+    [[nodiscard]] auto create_pin(Nid nid, Port_id port_id) -> Pid{
         Pid id = pin_table.size(); // Generate new PinID
         assert(id);
         pin_table.emplace_back(nid, port_id);
@@ -181,11 +179,11 @@ class __attribute__((packed)) Graph{
         return id;
     }
 
-    Node* ref_node(Nid id) const {
+    [[nodiscard]] Node* ref_node(Nid id) const {
         assert(id);
         return (Node* )&node_table[id];
     }
-    Pin* ref_pin(Pid id) const {
+    [[nodiscard]] Pin* ref_pin(Pid id) const {
         assert(id);
         return (Pin* )&pin_table[id];
     }

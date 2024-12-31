@@ -2,6 +2,7 @@
 #include <vector>
 #include <cassert>
 //#include "iassert.hpp"
+#include "hash_set3.hpp"
 
 constexpr int NUM_NODES = 10;
 constexpr int NUM_TYPES = 3;
@@ -21,6 +22,7 @@ private:
     Port_id port_id : 16;
     int64_t sedge : 48;       // Short-edges (48 bits 2-complement)
     Pid next_pin_id : 32;     // Points to next pin of the same master_node
+    emhash7::HashSet<int> edges;
 
 public:
     Pin() : master_nid(0), port_id(0) {clear_pin();}
@@ -40,10 +42,19 @@ public:
     [[nodiscard]] auto get_port_id() const -> Port_id {
         return port_id;
     }
+    bool overflow_handling(Pid other_id){
+        edges.insert(other_id);
+        return true;
+    }
     bool add_edge(Pid self_id, Pid other_id) {
         assert(self_id != other_id);
         std::cout<<"Adding edge between pins "<<self_id <<" and "<<other_id <<std::endl;
 
+        //Assuming all edges goes to overflow:
+        overflow_handling(other_id);
+
+        return true;
+#if 0
         // Check if any of the 4th 12 bits is set
         if((sedge>>3*12 & 0xFFF) != 0) {
             std::cout<<"Maximum sedges reached. Need overflow handling" <<std::endl<<std::endl;
@@ -72,6 +83,7 @@ public:
                 }
         }
         return false;
+#endif
 #if 0
         //Overflow is not handled for now
         if(overflow_link | set_link) {
@@ -102,6 +114,10 @@ public:
             }
         }
         return edges;
+    }
+    void print_edges(Pid pid) {
+        std::cout << "\n Print all edges: " <<std::endl;
+        //edges.dump_statics();
     }
     [[nodiscard]] auto get_next_pin_id() const -> Pid {
         return next_pin_id;
@@ -223,6 +239,7 @@ class __attribute__((packed)) Graph{
             std::cout<<"\t Master Node ID: "<<currPin->get_master_nid();
             std::cout<<"; Node Type: "<<ref_node(currPin->get_master_nid())->get_type() <<std::endl;
             std::cout<<"\t Port ID: "<<currPin->get_port_id() <<std::endl;
+            /*
             if(currPin->has_edges()) {   //Currently only sedges
                 std::array<int32_t, 4> edges = currPin->get_sedges(pid);
                 std::cout<<"\t Short edge(s): ";
@@ -232,6 +249,8 @@ class __attribute__((packed)) Graph{
                 std::cout<<std::endl;
             }
             std::cout<<"\t Next Pid: "<<currPin->get_next_pin_id() <<std::endl;
+            */
+            currPin->print_edges(pid);
         }
     }
     void display_next_pin_of_node(){
@@ -245,7 +264,7 @@ class __attribute__((packed)) Graph{
 
 static_assert(sizeof(Graph) == 48, "Graph size must be 48 bytes");
 static_assert(sizeof(Node) == 10, "Node size must be 6 bytes");
-static_assert(sizeof(Pin) == 16, "Graph size must be 12 bytes");
+static_assert(sizeof(Pin) == 64, "Pin size must be 64 bytes");
 
 int main()
 {

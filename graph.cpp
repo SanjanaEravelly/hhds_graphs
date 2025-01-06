@@ -1,7 +1,6 @@
 #include <iostream>
 #include <vector>
 #include <cassert>
-//#include "iassert.hpp"
 #include "hash_set3.hpp"
 
 constexpr int NUM_NODES = 10;
@@ -13,29 +12,19 @@ using Pid = uint32_t;
 using Type = uint16_t;
 using Port_id = uint16_t;
 
-int gNid = 1;
-int gPid = 1;
-
 class __attribute__((packed)) Pin{
 private:
     Nid master_nid : 32;
     Port_id port_id : 16;
     int64_t sedge : 48;       // Short-edges (48 bits 2-complement)
     Pid next_pin_id : 32;     // Points to next pin of the same master_node
-    emhash7::HashSet<int> edges;
+    emhash7::HashSet<Pid> edges;
 
 public:
-    Pin() : master_nid(0), port_id(0) {clear_pin();}
+    Pin() : master_nid(0), port_id(0), sedge(0), next_pin_id(0) {}
+    Pin(Nid master_nid_value, Port_id port_id_value)
+        : master_nid(master_nid_value), port_id(port_id_value), sedge(0), next_pin_id(0) {}
 
-    Pin(Nid master_nid_value, Port_id port_id_value) {
-        clear_pin();
-        master_nid = master_nid_value;
-        port_id = port_id_value;
-    }
-    void clear_pin(){
-        bzero(this, sizeof(Pin));  // set everything to zero
-        return;
-    }
     [[nodiscard]] auto get_master_nid() const -> Nid {
         return master_nid;
     }
@@ -115,10 +104,15 @@ public:
         }
         return edges;
     }
-    void print_edges(Pid pid) {
-        std::cout << "\n Print all edges: " <<std::endl;
-        //edges.dump_statics();
+
+    void print_edges() {
+        std::cout << "\t Edges:";
+         for (const auto &edge : edges) {
+             std::cout << " " << edge;
+         }
+         std::cout << std::endl;
     }
+
     [[nodiscard]] auto get_next_pin_id() const -> Pid {
         return next_pin_id;
     }
@@ -250,7 +244,7 @@ class __attribute__((packed)) Graph{
             }
             std::cout<<"\t Next Pid: "<<currPin->get_next_pin_id() <<std::endl;
             */
-            currPin->print_edges(pid);
+            currPin->print_edges();
         }
     }
     void display_next_pin_of_node(){

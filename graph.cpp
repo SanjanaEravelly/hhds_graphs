@@ -31,23 +31,17 @@ public:
     [[nodiscard]] auto get_port_id() const -> Port_id {
         return port_id;
     }
-    bool overflow_handling(Pid other_id){
-        edges.insert(other_id);
-        return true;
+    [[nodiscard]] auto overflow_handling(Pid other_id) -> bool {
+        return edges.insert(other_id).second;
     }
-    bool add_edge(Pid self_id, Pid other_id) {
+    auto add_edge(Pid self_id, Pid other_id) -> bool {
         assert(self_id != other_id);
         std::cout<<"Adding edge between pins "<<self_id <<" and "<<other_id <<std::endl;
 
-        //Assuming all edges goes to overflow:
-        overflow_handling(other_id);
-
-        return true;
-#if 0
         // Check if any of the 4th 12 bits is set
         if((sedge>>3*12 & 0xFFF) != 0) {
-            std::cout<<"Maximum sedges reached. Need overflow handling" <<std::endl<<std::endl;
-            return false;
+            std::cout<<"Maximum sedges reached. overflow handling" <<std::endl<<std::endl;
+            return overflow_handling(other_id);
         }
 
         // Typecast to avoid underflow
@@ -57,8 +51,8 @@ public:
         bool fits = diff > -(1 << 11) && diff < ((1 << 11) - 1);  // 12 bits 2-complement
 
         if(!fits) {
-            std::cout<<"Failed adding edge: !fits; diff="<<diff <<std::endl<<std::endl;
-            return false;
+            std::cout<<"Edge isnt short enough; diff="<<diff << "; Try overflow handling"<<std::endl<<std::endl;
+            return overflow_handling(other_id);
         }
 
         // Try to add the edge to one of the 4 positions
@@ -71,22 +65,14 @@ public:
                 return true;
                 }
         }
-        return false;
-#endif
-#if 0
-        //Overflow is not handled for now
-        if(overflow_link | set_link) {
-            return false;
-        }
-        ledge_or_overflow_or_set = other_id;
+
         return true;
-#endif
     }
     [[nodiscard]] auto has_edges() const -> bool {
         return sedge != 0;
     }
 
-    [[nodiscard]] std::array<int32_t, 4> get_sedges(Pid pid) const {
+    [[nodiscard]] auto get_sedges(Pid pid) const -> std::array<int32_t, 4> {
         std::array<int32_t, 4> edges = {0, 0, 0, 0};
         int edge_count = 0;
         for (int i = 0; i < 4; ++i) {
@@ -105,12 +91,16 @@ public:
         return edges;
     }
 
-    void print_edges() {
-        std::cout << "\t Edges:";
-         for (const auto &edge : edges) {
-             std::cout << " " << edge;
-         }
-         std::cout << std::endl;
+    void print_overflow_edges() {
+        if(edges.empty()) {
+            //std::cout << "\t No overflow edges for this pin." << std::endl;
+            return;
+        }
+        std::cout << "\t Overflow edge(s):";
+        for (const auto &edge : edges) {
+            std::cout << " " << edge;
+        }
+        std::cout << std::endl;
     }
 
     [[nodiscard]] auto get_next_pin_id() const -> Pid {
@@ -189,11 +179,11 @@ class __attribute__((packed)) Graph{
         return id;
     }
 
-    [[nodiscard]] Node* ref_node(Nid id) const {
+    [[nodiscard]] auto ref_node(Nid id) const -> Node* {
         assert(id);
         return (Node* )&node_table[id];
     }
-    [[nodiscard]] Pin* ref_pin(Pid id) const {
+    [[nodiscard]] auto ref_pin(Pid id) const -> Pin* {
         assert(id);
         return (Pin* )&pin_table[id];
     }
@@ -233,7 +223,7 @@ class __attribute__((packed)) Graph{
             std::cout<<"\t Master Node ID: "<<currPin->get_master_nid();
             std::cout<<"; Node Type: "<<ref_node(currPin->get_master_nid())->get_type() <<std::endl;
             std::cout<<"\t Port ID: "<<currPin->get_port_id() <<std::endl;
-            /*
+
             if(currPin->has_edges()) {   //Currently only sedges
                 std::array<int32_t, 4> edges = currPin->get_sedges(pid);
                 std::cout<<"\t Short edge(s): ";
@@ -242,9 +232,9 @@ class __attribute__((packed)) Graph{
                 }
                 std::cout<<std::endl;
             }
+            currPin->print_overflow_edges();
+
             std::cout<<"\t Next Pid: "<<currPin->get_next_pin_id() <<std::endl;
-            */
-            currPin->print_edges();
         }
     }
     void display_next_pin_of_node(){

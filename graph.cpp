@@ -7,23 +7,24 @@ constexpr int NUM_NODES = 10;
 constexpr int NUM_TYPES = 3;
 constexpr int MAX_PINS_PER_NODE = 10;
 
-using Nid = uint32_t;
-using Pid = uint32_t;
+using Nid = uint64_t;
+using Pid = uint64_t;
 using Type = uint16_t;
-using Port_id = uint16_t;
+using Port_id = uint32_t;
 
 class __attribute__((packed)) Pin{
 private:
-    Nid master_nid : 32;
-    Port_id port_id : 16;
+    Nid master_nid : 42;
+    Port_id port_id : 22;
     int64_t sedge : 48;       // Short-edges (48 bits 2-complement)
-    Pid next_pin_id : 32;     // Points to next pin of the same master_node
-    emhash7::HashSet<Pid> edges;
+    Pid next_pin_id : 42;     // Points to next pin of the same master_node
+    uint8_t use_overflow : 1;
+    int padding : 21;
 
 public:
-    Pin() : master_nid(0), port_id(0), sedge(0), next_pin_id(0) {}
+    Pin() : master_nid(0), port_id(0), sedge(0), next_pin_id(0), use_overflow(0) {}
     Pin(Nid master_nid_value, Port_id port_id_value)
-        : master_nid(master_nid_value), port_id(port_id_value), sedge(0), next_pin_id(0) {}
+        : master_nid(master_nid_value), port_id(port_id_value), sedge(0), next_pin_id(0), use_overflow(0) {}
 
     [[nodiscard]] auto get_master_nid() const -> Nid {
         return master_nid;
@@ -31,17 +32,58 @@ public:
     [[nodiscard]] auto get_port_id() const -> Port_id {
         return port_id;
     }
-    [[nodiscard]] auto overflow_handling(Pid other_id) -> bool {
-        return edges.insert(other_id).second;
+    [[nodiscard]] auto overflow_handling(Pid self_id, Pid other_id) -> bool {
+        int64_t temp_sedge = 0;
+        emhash7::HashSet<Pid>* temp_ledges = NULL;
+
+        // If overflow is called first time:
+        //      1. Allocate memory for hashset.
+        //      2. Assign the hashset address to sedge.
+        //      3. Copy the sedges to the new hashset.
+        if(use_overflow == 0) {
+            temp_sedge = sedge;
+
+            sedge = reinterpret_cast<int64_t>(new emhash7::HashSet<Pid>());
+
+            temp_ledges = reinterpret_cast<emhash7::HashSet<Pid>*>(sedge);
+            for (int i = 0; i < 4; ++i) {
+                // Extract each 12-bit edge
+                int32_t edge = (temp_sedge >> (i * 12)) & 0xFFF; // Get the 12 bits
+
+                // Check for sign extension (12-bit signed to 32-bit signed)
+                if (edge & 0x800) { // If the sign bit is set
+                    edge |= 0xFFFFF000; // Sign extend to 32 bits
+                }
+
+                if (edge != 0) {
+                    temp_ledges->insert(self_id+edge);
+                }
+            }
+            use_overflow = 1;
+        }
+        else {
+            if (sedge != 0) {
+                temp_ledges = reinterpret_cast<emhash7::HashSet<Pid>*>(sedge);
+            }
+        }
+        temp_ledges->insert(other_id);
+
+        return true;
     }
     auto add_edge(Pid self_id, Pid other_id) -> bool {
         assert(self_id != other_id);
         std::cout<<"Adding edge between pins "<<self_id <<" and "<<other_id <<std::endl;
 
+        // If already in overflow, continue using the overflow hashset and not use sedge
+        if(use_overflow){
+            std::cout<<"Using overflow handling" <<std::endl<<std::endl;
+            return overflow_handling(self_id, other_id);
+        }
+
         // Check if any of the 4th 12 bits is set
         if((sedge>>3*12 & 0xFFF) != 0) {
-            std::cout<<"Maximum sedges reached. overflow handling" <<std::endl<<std::endl;
-            return overflow_handling(other_id);
+            std::cout<<"Maximum sedges reached. Overflow handling" <<std::endl<<std::endl;
+            return overflow_handling(self_id, other_id);
         }
 
         // Typecast to avoid underflow
@@ -51,8 +93,8 @@ public:
         bool fits = diff > -(1 << 11) && diff < ((1 << 11) - 1);  // 12 bits 2-complement
 
         if(!fits) {
-            std::cout<<"Edge isnt short enough; diff="<<diff << "; Try overflow handling"<<std::endl<<std::endl;
-            return overflow_handling(other_id);
+            std::cout<<"Edge isnt short enough; diff="<<diff << "; Overflow handling"<<std::endl<<std::endl;
+            return overflow_handling(self_id, other_id);
         }
 
         // Try to add the edge to one of the 4 positions
@@ -75,34 +117,36 @@ public:
     [[nodiscard]] auto get_sedges(Pid pid) const -> std::array<int32_t, 4> {
         std::array<int32_t, 4> edges = {0, 0, 0, 0};
         int edge_count = 0;
-        for (int i = 0; i < 4; ++i) {
-            // Extract each 12-bit edge
-            int32_t edge = (sedge >> (i * 12)) & 0xFFF; // Get the 12 bits
 
-            // Check for sign extension (12-bit signed to 32-bit signed)
-            if (edge & 0x800) { // If the sign bit is set
-                edge |= 0xFFFFF000; // Sign extend to 32 bits
+        if(use_overflow) {
+            emhash7::HashSet<Pid>* ledges = reinterpret_cast<emhash7::HashSet<Pid>*>(sedge);
+            if(ledges->empty()) {
+                std::cout << "\t No overflow edges for this pin." << std::endl;
+                return edges;
             }
+            std::cout << "\t Overflow edge(s):";
+            for (const auto& Tedge : *ledges) {
+                std::cout << " " << Tedge;
+            }
+            std::cout << std::endl;
+        }
+        else {
+            for (int i = 0; i < 4; ++i) {
+                // Extract each 12-bit edge
+                int32_t edge = (sedge >> (i * 12)) & 0xFFF; // Get the 12 bits
 
-            if (edge != 0) {
-                edges[edge_count++] = pid + edge;
+                // Check for sign extension (12-bit signed to 32-bit signed)
+                if (edge & 0x800) { // If the sign bit is set
+                    edge |= 0xFFFFF000; // Sign extend to 32 bits
+                }
+
+                if (edge != 0) {
+                    edges[edge_count++] = pid + edge;
+                }
             }
         }
         return edges;
     }
-
-    void print_overflow_edges() {
-        if(edges.empty()) {
-            //std::cout << "\t No overflow edges for this pin." << std::endl;
-            return;
-        }
-        std::cout << "\t Overflow edge(s):";
-        for (const auto &edge : edges) {
-            std::cout << " " << edge;
-        }
-        std::cout << std::endl;
-    }
-
     [[nodiscard]] auto get_next_pin_id() const -> Pid {
         return next_pin_id;
     }
@@ -113,15 +157,15 @@ public:
 
 class __attribute__((packed)) Node{
 private:
-    Nid nid : 32;
+    Nid nid : 42;
     Type type : 16;
-    Pid next_pin_id;       // Points to the first pin of the node
+    Pid next_pin_id : 42;       // Points to the first pin of the node
     
 public:
     // Default constructor
     Node() : nid(0) {clear_node();} // Initialize with default values
 
-    Node(uint32_t nid_value) {
+    Node(Nid nid_value) {
         clear_node();
         nid = nid_value;
     }
@@ -188,11 +232,11 @@ class __attribute__((packed)) Graph{
         return (Pin* )&pin_table[id];
     }
     
-    void add_edge(uint32_t driver_id, uint32_t sink_id) const {
+    void add_edge(Pid driver_id, Pid sink_id) const {
         add_edge_int(driver_id, sink_id);
         add_edge_int(sink_id, driver_id);
     }
-    void add_edge_int(uint32_t self_id, uint32_t other_id) const {
+    void add_edge_int(Pid self_id, Pid other_id) const {
         // For now considering only Pins have edge(s)
         bool ok = ref_pin(self_id)->add_edge(self_id, other_id);
         if(ok){
@@ -232,7 +276,6 @@ class __attribute__((packed)) Graph{
                 }
                 std::cout<<std::endl;
             }
-            currPin->print_overflow_edges();
 
             std::cout<<"\t Next Pid: "<<currPin->get_next_pin_id() <<std::endl;
         }
@@ -247,8 +290,8 @@ class __attribute__((packed)) Graph{
 };
 
 static_assert(sizeof(Graph) == 48, "Graph size must be 48 bytes");
-static_assert(sizeof(Node) == 10, "Node size must be 6 bytes");
-static_assert(sizeof(Pin) == 64, "Pin size must be 64 bytes");
+static_assert(sizeof(Node) == 13, "Node size must be 13 bytes");
+static_assert(sizeof(Pin) == 22, "Pin size must be 22 bytes");
 
 int main()
 {
@@ -282,6 +325,7 @@ int main()
     //g1.add_edge(4, 100000); //Should not fit for both pins, diff not in range
     g1.add_edge(6, 5);
     g1.add_edge(2, 5);
+    g1.add_edge(5, 13); //Should overflow for 5, because 5 already has 4 sedge
     g1.add_edge(5, 3); //Should overflow for 5, because 5 already has 4 sedge
     g1.add_edge(5, 4); //Should overflow for 5, because 5 already has 4 sedge
     g1.add_edge(10, 24);
